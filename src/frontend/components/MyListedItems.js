@@ -35,10 +35,33 @@ export default function MyListedItems({ marketplace, nft, account }) {
       const i = await marketplace.items(indx)
       if (i.seller.toLowerCase() === account) {
         // get uri url from nft contract
-        const uri = await nft.tokenURI(i.tokenId)
+        let uri = await nft.tokenURI(i.tokenId)
+        //replace ipfs.infura.io with ipfs.io to eliminate the bad request
+        uri = uri.replace("ipfs.infura.io", "ipfs.io");
         // use uri to fetch the nft metadata stored on ipfs 
-        const response = await fetch(uri)
-        const metadata = await response.json()
+        
+        async function obtainMetadata(){
+            return new Promise((resolve, reject)=>{
+              fetch(uri, {
+                    method: "GET",
+                    headers: {
+                        
+                    }
+                })
+                .then(async(res) => {
+                    if(res.status > 399) throw res;
+                    resolve(await res.json());
+                }).catch(err=>{
+                    reject(err);
+                })
+            })
+          }
+          
+          const metadata = await obtainMetadata().catch(e=>{
+                 console.log("What went wrong ", e);
+              });
+          //also change ipfs.infura.io to ipfs.io in the image uri to avoid bad request
+          let metaimage = metadata.image.replace("ipfs.infura.io", "ipfs.io")
         // get total price of item (item price + fee)
         const totalPrice = await marketplace.getTotalPrice(i.itemId)
         // define listed item object
@@ -48,7 +71,7 @@ export default function MyListedItems({ marketplace, nft, account }) {
           itemId: i.itemId,
           name: metadata.name,
           description: metadata.description,
-          image: metadata.image
+          image: metaimage
         }
         listedItems.push(item)
         // Add listed item to sold items array if sold

@@ -5,6 +5,7 @@ import { Row, Col, Card, Button } from 'react-bootstrap'
 const Home = ({ marketplace, nft }) => {
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState([])
+
   const loadMarketplaceItems = async () => {
     // Load all unsold items
     const itemCount = await marketplace.itemCount()
@@ -13,12 +14,36 @@ const Home = ({ marketplace, nft }) => {
       const item = await marketplace.items(i)
       if (!item.sold) {
         // get uri url from nft contract
-        const uri = await nft.tokenURI(item.tokenId)
+        let uri = await nft.tokenURI(item.tokenId)
+        //replace ipfs.infura.io with ipfs.io to eliminate the bad request
+        uri = uri.replace("ipfs.infura.io", "ipfs.io");
         // use uri to fetch the nft metadata stored on ipfs 
-        const response = await fetch(uri)
-        const metadata = await response.json()
+       
+        async function obtainMetadata(){
+          return new Promise((resolve, reject)=>{
+            fetch(uri, {
+                  method: "GET",
+                  headers: {
+                      
+                  }
+              })
+              .then(async(res) => {
+                  if(res.status > 399) throw res;
+                  resolve(await res.json());
+              }).catch(err=>{
+                  reject(err);
+              })
+          })
+        }
+        
+        const metadata = await obtainMetadata().catch(e=>{
+               console.log("What went wrong ", e);
+            });
         // get total price of item (item price + fee)
         const totalPrice = await marketplace.getTotalPrice(item.itemId)
+        //also change ipfs.infura.io to ipfs.io in the image uri to avoid bad request
+        let metaimage = metadata.image.replace("ipfs.infura.io", "ipfs.io")
+        
         // Add item to items array
         items.push({
           totalPrice,
@@ -26,7 +51,7 @@ const Home = ({ marketplace, nft }) => {
           seller: item.seller,
           name: metadata.name,
           description: metadata.description,
-          image: metadata.image
+          image: metaimage
         })
       }
     }
